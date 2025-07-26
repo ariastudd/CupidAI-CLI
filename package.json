@@ -1,0 +1,35 @@
+{
+  "name": "cupidai-cli",
+  "version": "1.0.0",
+  "description": "CLI para CupidAI - Herramienta de línea de comandos",
+  "main": "index.js",
+  "bin": {
+    "cupidai": "./bin/cupidai.js"
+  },
+  "scripts": {
+    "start": "node bin/cupidai.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "cli",
+    "cupidai",
+    "ai",
+    "dating",
+    "tool"
+  ],
+  "author": "ariastudd",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^11.0.0",
+    "chalk": "^4.1.2",
+    "inquirer": "^8.2.6"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ariastudd/CupidAI-CLI.git"
+  },
+  "homepage": "https://github.com/ariastudd/CupidAI-CLI#readme",
+  "bugs": {
+    "url": "https://github.com/ariastudd/CupidAI-CLI/issues"
+  }
+}
