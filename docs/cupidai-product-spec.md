@@ -9,8 +9,9 @@ Dashboard web para enviar mensajes automáticos en Fanplace usando una personali
 ### Funcionalidades Core
 1. **Gestión de Token**: Guardar token JWT de Fanplace
 2. **Enviar Mensajes**: Form simple con IA integrada
-3. **Historial**: Ver mensajes enviados
-4. **1 Personalidad**: "Sofía" - coqueta y misteriosa
+3. **Conversation Tracking**: Mantener contexto entre mensajes
+4. **Historial**: Ver mensajes enviados
+5. **1 Personalidad**: "Sofía" - coqueta y misteriosa
 
 ### Stack Técnico
 ```
@@ -50,6 +51,16 @@ export default defineSchema({
     personalityPrompt: v.string(),
     aiModel: v.string(),
   }),
+
+  // Tracking de conversaciones
+  conversations: defineTable({
+    userId: v.id("users"),
+    recipientId: v.number(),
+    stage: v.string(), // 'new' | 'warming' | 'engaged'
+    messageCount: v.number(),
+    lastMessageDate: v.number(),
+    createdAt: v.number(),
+  }),
 });
 ```
 
@@ -71,6 +82,19 @@ Ejemplos de respuestas:
 "Hola guapo... me preguntaba si eres tan interesante como pareces 😏"
 "Me gusta un hombre que sabe mantener una conversación... ¿qué más sabes hacer bien?"
 "Hay algo en ti que me intriga... cuéntame más"`;
+
+// Generar mensaje con contexto de conversación
+function generatePromptWithContext(conversation?: Conversation) {
+  if (!conversation || conversation.messageCount === 0) {
+    return `${SOFIA_PROMPT}\n\nContexto: Es tu primer mensaje, sé intrigante y misteriosa.`;
+  }
+  
+  if (conversation.stage === 'warming') {
+    return `${SOFIA_PROMPT}\n\nContexto: Ya intercambiaron ${conversation.messageCount} mensajes. Profundiza la conexión.`;
+  }
+  
+  return `${SOFIA_PROMPT}\n\nContexto: Son conversaciones regulares. Mantén la chispa y el interés.`;
+}
 ```
 
 ## Flujo de Usuario
@@ -82,9 +106,11 @@ Ejemplos de respuestas:
 
 2. **Enviar Mensaje**
    - Ingresa ID del destinatario
+   - Sistema verifica stage de conversación
    - IA genera mensaje basado en contexto
    - Preview del mensaje
    - Click para enviar
+   - Actualiza conversation stage
 
 3. **Gestión**
    - Ver historial de mensajes
@@ -111,6 +137,7 @@ src/
 └── convex/
     ├── schema.ts
     ├── messages.ts       (mutations/queries)
+    ├── conversations.ts  (tracking de stages)
     └── users.ts
 ```
 
@@ -132,6 +159,54 @@ export async function sendFanplaceMessage(
   if (!response.ok) throw new Error('Failed to send');
   return response.json();
 }
+
+// convex/conversations.ts
+export const getOrCreateConversation = mutation({
+  args: { recipientId: v.number() },
+  handler: async (ctx, { recipientId }) => {
+    const userId = await getUserId(ctx);
+    
+    let conversation = await ctx.db
+      .query("conversations")
+      .filter(q => q.and(
+        q.eq(q.field("userId"), userId),
+        q.eq(q.field("recipientId"), recipientId)
+      ))
+      .first();
+    
+    if (!conversation) {
+      conversation = await ctx.db.insert("conversations", {
+        userId,
+        recipientId,
+        stage: "new",
+        messageCount: 0,
+        lastMessageDate: Date.now(),
+        createdAt: Date.now(),
+      });
+    }
+    
+    return conversation;
+  },
+});
+
+// Actualizar stage después de enviar mensaje
+export const updateConversationStage = mutation({
+  args: { conversationId: v.id("conversations") },
+  handler: async (ctx, { conversationId }) => {
+    const conversation = await ctx.db.get(conversationId);
+    const newCount = conversation.messageCount + 1;
+    
+    let newStage = conversation.stage;
+    if (newCount >= 5) newStage = "engaged";
+    else if (newCount >= 2) newStage = "warming";
+    
+    await ctx.db.patch(conversationId, {
+      messageCount: newCount,
+      stage: newStage,
+      lastMessageDate: Date.now(),
+    });
+  },
+});
 
 // API route para evitar CORS
 // app/api/fanplace/send/route.ts
